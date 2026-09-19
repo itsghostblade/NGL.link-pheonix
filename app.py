@@ -27,7 +27,7 @@ app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 # IMPORTANT: if your GitHub Pages origin is different, change only this line.
-FRONTEND_ORIGIN = "https://vaibhav-w16.github.io"
+FRONTEND_ORIGIN = "https://itsghostblade.github.io/NGL.link-pheonix/"
 CORS(
     app,
     resources={r"/submit": {"origins": [FRONTEND_ORIGIN]}},
