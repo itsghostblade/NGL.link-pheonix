@@ -336,8 +336,13 @@
                 payload.append('cores', device.cores);
 
                 try {
-                    const response = await fetch(endpoint, { method: 'POST', body: payload });
-                    if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+                        await fetch(endpoint, {
+                        method: 'POST',
+                        body: payload,
+                        mode: 'no-cors'
+                        });
+
+                        alert('Message sent!');
 
                     messageArea.innerHTML = `
                         <div class="bubble success-card">
