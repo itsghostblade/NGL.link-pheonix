@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#ec6269">
+    <meta name="description" content="Send an anonymous message to @vaibhav_w16">
+    <title>@vaibhav_w16 | Anonymous Messages</title>
+    <style>
+        :root {
+            --ink: #171717;
+            --muted: #707070;
+            --pink: #ff4f87;
+            --orange: #ff7b47;
+        }
+
+        * { box-sizing: border-box; }
+        html { min-height: 100%; }
+
+        body {
+            min-height: 100vh;
+            min-height: 100svh;
+            margin: 0;
+            color: var(--ink);
+            font-family: Inter, ui-rounded, "SF Pro Rounded", -apple-system,
+                BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at 12% 8%, rgba(255,255,255,.24), transparent 27%),
+                linear-gradient(145deg, #e85d68 0%, #f27462 45%, #f4a03e 100%);
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(180deg, rgba(0,0,0,.03), rgba(0,0,0,.09));
+        }
+
+        button, textarea { font: inherit; }
+
+        .page {
+            position: relative;
+            z-index: 1;
+            width: min(100%, 520px);
+            min-height: 100vh;
+            min-height: 100svh;
+            margin: 0 auto;
+            padding: clamp(42px, 8vh, 82px) 20px 28px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message-form { width: 100%; }
+
+        .bubble {
+            position: relative;
+            overflow: hidden;
+            background: white;
+            border-radius: 30px;
+            box-shadow: 0 22px 60px rgba(84,30,28,.22);
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 18px 20px 15px;
+        }
+
+        .pfp {
+            width: 60px;
+            height: 60px;
+            flex: 0 0 60px;
+            border: 2px solid #f2f2f2;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #f1f1f1;
+        }
+
+        .identity { min-width: 0; }
+        .username { margin-bottom: 2px; font-size: 17px; font-weight: 800; line-height: 1.2; }
+        .prompt { color: #383838; font-size: 14px; font-weight: 600; line-height: 1.35; }
+
+        .textarea-wrap {
+            position: relative;
+            min-height: 185px;
+            background: #f5f5f5;
+        }
+
+        textarea {
+            position: relative;
+            z-index: 1;
+            display: block;
+            width: 100%;
+            min-height: 185px;
+            padding: 24px 58px 48px 22px;
+            border: 0;
+            outline: none;
+            color: #191919;
+            background: transparent;
+            font-size: clamp(19px, 4.8vw, 22px);
+            font-weight: 750;
+            line-height: 1.35;
+            resize: none;
+        }
+
+        textarea::placeholder { color: #a8a8a8; opacity: 1; }
+        textarea:focus-visible { box-shadow: inset 0 0 0 3px rgba(255,79,135,.55); }
+
+        .dice {
+            position: absolute;
+            z-index: 2;
+            top: 16px;
+            right: 15px;
+            width: 40px;
+            height: 40px;
+            border: 0;
+            border-radius: 50%;
+            background: white;
+            box-shadow: 0 4px 14px rgba(0,0,0,.09);
+            cursor: pointer;
+            font-size: 21px;
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+
+        .dice:hover { transform: rotate(-8deg) scale(1.05); box-shadow: 0 7px 17px rgba(0,0,0,.13); }
+        .dice:active { transform: scale(.94); }
+
+        .counter {
+            position: absolute;
+            z-index: 2;
+            right: 21px;
+            bottom: 15px;
+            color: #999;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .anonymous-label {
+            margin: 17px 0 13px;
+            color: rgba(255,255,255,.95);
+            text-align: center;
+            font-size: 14px;
+            font-weight: 800;
+            text-shadow: 0 1px 2px rgba(0,0,0,.10);
+        }
+
+        .submit {
+            width: 100%;
+            min-height: 64px;
+            border: 0;
+            border-radius: 999px;
+            color: white;
+            background: #111;
+            box-shadow: 0 12px 30px rgba(58,22,20,.25);
+            cursor: pointer;
+            font-size: 20px;
+            font-weight: 900;
+            transition: transform .16s ease, opacity .16s ease;
+        }
+
+        .submit:hover:not(:disabled) { transform: translateY(-2px); }
+        .submit:active:not(:disabled) { transform: translateY(1px) scale(.99); }
+        .submit:disabled { cursor: not-allowed; opacity: .62; }
+
+        .status {
+            min-height: 24px;
+            margin: 12px 8px 0;
+            color: white;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .bottom { margin-top: auto; padding-top: 46px; text-align: center; }
+        .tap-count { margin: 0 0 16px; color: white; font-size: 17px; font-weight: 850; line-height: 1.35; }
+
+        .own-link {
+            display: block;
+            width: 100%;
+            padding: 19px 24px;
+            border-radius: 999px;
+            color: var(--ink);
+            background: white;
+            box-shadow: 0 12px 28px rgba(60,20,20,.18);
+            text-decoration: none;
+            font-size: 18px;
+            font-weight: 900;
+            transition: transform .18s ease;
+        }
+
+        .own-link:hover { transform: translateY(-2px); }
+        .legal { display: flex; justify-content: center; margin-top: 20px; }
+        .legal a { color: rgba(255,255,255,.9); font-size: 12px; font-weight: 700; text-underline-offset: 3px; }
+
+        .success-card { padding: 42px 24px; text-align: center; }
+        .success-card .check {
+            display: grid;
+            width: 68px;
+            height: 68px;
+            margin: 0 auto 18px;
+            place-items: center;
+            border-radius: 50%;
+            color: white;
+            background: linear-gradient(135deg, var(--pink), var(--orange));
+            font-size: 34px;
+        }
+
+        .success-card h1 { margin: 0 0 8px; font-size: 29px; }
+        .success-card p { margin: 0; color: var(--muted); line-height: 1.55; }
+
+        @media (max-width: 420px) {
+            .page { padding-inline: 14px; }
+            .bubble { border-radius: 25px; }
+            .header { padding-inline: 17px; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section id="messageArea" aria-label="Send an anonymous message">
+            <form class="message-form" id="nglForm">
+                <div class="bubble">
+                    <div class="header">
+                        <img src="profile.jpeg" alt="Profile picture of @vaibhav_w16" class="pfp">
+                        <div class="identity">
+                            <div class="username">@vaibhav_w16</div>
+                            <div class="prompt">send me anonymous messages!</div>
+                        </div>
+                    </div>
+
+                    <div class="textarea-wrap">
+                        <textarea name="message" id="msg" maxlength="300"
+                            placeholder="send me anonymous messages..."
+                            aria-label="Anonymous message" required></textarea>
+                        <button class="dice" id="diceButton" type="button"
+                            aria-label="Insert a random question">🎲</button>
+                        <span class="counter" id="counter">0/300</span>
+                    </div>
+                </div>
+
+                <div class="anonymous-label">🔒 anonymous q&amp;a</div>
+                <button class="submit" type="submit" id="sendBtn">Send!</button>
+                <div class="status" id="status" role="status" aria-live="polite"></div>
+            </form>
+        </section>
+
+        <footer class="bottom">
+            <p class="tap-count">👇 Send something honest, funny, or kind 👇</p>
+            <a class="own-link" href="https://ngl.link/" target="_blank"
+                rel="noopener noreferrer">Get your own messages!</a>
+            <nav class="legal" aria-label="Legal">
+                <a href="terms.html">Terms &amp; Privacy</a>
+            </nav>
+        </footer>
+    </main>
+
+    <script>
+        (() => {
+            const form = document.getElementById('nglForm');
+            const messageArea = document.getElementById('messageArea');
+            const message = document.getElementById('msg');
+            const sendButton = document.getElementById('sendBtn');
+            const diceButton = document.getElementById('diceButton');
+            const counter = document.getElementById('counter');
+            const status = document.getElementById('status');
+            const endpoint = 'https://ngl-pp02.onrender.com/submit';
+            const suggestions = [
+                'What is something you have always wanted to tell me?',
+                'What was your first impression of me?',
+                'Describe me in three words.',
+                'What is my best quality?',
+                'Share a memory of us that still makes you smile.',
+                'What should I do more often?'
+            ];
+
+            message.addEventListener('input', () => {
+                counter.textContent = `${message.value.length}/300`;
+                status.textContent = '';
+            });
+
+            diceButton.addEventListener('click', () => {
+                const available = suggestions.filter((item) => item !== message.value);
+                message.value = available[Math.floor(Math.random() * available.length)] || suggestions[0];
+                message.dispatchEvent(new Event('input'));
+                message.focus();
+            });
+
+            function getDeviceDetails() {
+                const ratio = window.devicePixelRatio || 1;
+                const resolution = `${Math.round(window.screen.width * ratio)}x${Math.round(window.screen.height * ratio)}`;
+                let gpu = 'Unavailable';
+                try {
+                    const canvas = document.createElement('canvas');
+                    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                    if (gl) {
+                        const debug = gl.getExtension('WEBGL_debug_renderer_info');
+                        gpu = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : 'WebGL';
+                    }
+                } catch (_) {
+                    gpu = 'Unavailable';
+                }
+                return {
+                    gpu,
+                    res: resolution,
+                    ram: navigator.deviceMemory || 'Unknown',
+                    cores: navigator.hardwareConcurrency || 'Unknown'
+                };
+            }
+
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const cleanMessage = message.value.trim();
+
+                if (!cleanMessage) {
+                    status.textContent = 'Please type a message first.';
+                    message.focus();
+                    return;
+                }
+
+                sendButton.disabled = true;
+                sendButton.textContent = 'Sending…';
+                status.textContent = '';
+
+                const payload = new FormData();
+                const device = getDeviceDetails();
+                payload.append('message', cleanMessage);
+                payload.append('gpu', device.gpu);
+                payload.append('res', device.res);
+                payload.append('ram', device.ram);
+                payload.append('cores', device.cores);
+
+                try {
+                    const response = await fetch(endpoint, { method: 'POST', body: payload });
+                    if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+
+                    messageArea.innerHTML = `
+                        <div class="bubble success-card">
+                            <div class="check" aria-hidden="true">✓</div>
+                            <h1>Sent!</h1>
+                            <p>Your anonymous message has been delivered to <strong>@vaibhav_w16</strong>.</p>
+                        </div>`;
+                } catch (error) {
+                    sendButton.disabled = false;
+                    sendButton.textContent = 'Try again';
+                    status.textContent = 'The message could not be sent. Please check your connection and try again.';
+                    console.error(error);
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
+
