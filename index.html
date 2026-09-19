@@ -336,24 +336,24 @@
                 payload.append('cores', device.cores);
 
                 try {
-                        await fetch(endpoint, {
+                    await fetch(endpoint, {
                         method: 'POST',
                         body: payload,
                         mode: 'no-cors'
-                        });
-
-                        alert('Message sent!');
-
+                    });
+                
                     messageArea.innerHTML = `
                         <div class="bubble success-card">
                             <div class="check" aria-hidden="true">✓</div>
                             <h1>Sent!</h1>
                             <p>Your anonymous message has been delivered to <strong>@root.init_vaibhav</strong>.</p>
-                        </div>`;
+                        </div>
+                    `;
                 } catch (error) {
                     sendButton.disabled = false;
                     sendButton.textContent = 'Try again';
-                    status.textContent = 'The message could not be sent. Please check your connection and try again.';
+                    status.textContent =
+                        'The message could not be sent. Please check your connection and try again.';
                     console.error(error);
                 }
             });
