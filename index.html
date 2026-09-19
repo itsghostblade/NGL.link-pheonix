@@ -210,6 +210,22 @@
         .success-card h1 { margin: 0 0 8px; font-size: 29px; }
         .success-card p { margin: 0; color: var(--muted); line-height: 1.55; }
 
+        .send-another {
+            display: inline-block;
+            margin-top: 24px;
+            padding: 14px 24px;
+            border-radius: 999px;
+            color: white;
+            background: #111;
+            box-shadow: 0 8px 20px rgba(0,0,0,.16);
+            text-decoration: none;
+            font-weight: 850;
+            transition: transform .16s ease, opacity .16s ease;
+        }
+
+        .send-another:hover { transform: translateY(-2px); }
+        .send-another:active { transform: scale(.98); }
+
         @media (max-width: 420px) {
             .page { padding-inline: 14px; }
             .bubble { border-radius: 25px; }
@@ -227,7 +243,7 @@
             <form class="message-form" id="nglForm">
                 <div class="bubble">
                     <div class="header">
-                        <img src="profile.jpeg" alt="Profile picture of @vaibhav_w16" class="pfp">
+                        <img src="profile.jpeg" alt="Profile picture of @root.init_vaibhav" class="pfp">
                         <div class="identity">
                             <div class="username">@root.init_vaibhav</div>
                             <div class="prompt">send me anonymous messages!</div>
@@ -347,6 +363,7 @@
                             <div class="check" aria-hidden="true">✓</div>
                             <h1>Sent!</h1>
                             <p>Your anonymous message has been delivered to <strong>@root.init_vaibhav</strong>.</p>
+                            <a href="./" class="send-another">Send another message</a>
                         </div>
                     `;
                 } catch (error) {
@@ -361,4 +378,3 @@
     </script>
 </body>
 </html>
-
