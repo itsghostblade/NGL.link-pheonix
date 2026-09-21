@@ -307,25 +307,146 @@
                 message.focus();
             });
 
-            function getDeviceDetails() {
-                const ratio = window.devicePixelRatio || 1;
-                const resolution = `${Math.round(window.screen.width * ratio)}x${Math.round(window.screen.height * ratio)}`;
-                let gpu = 'Unavailable';
+            async function sha256Hex(value) {
+                try {
+                    const bytes = new TextEncoder().encode(value);
+                    const hash = await crypto.subtle.digest('SHA-256', bytes);
+                    return Array.from(new Uint8Array(hash))
+                        .map((b) => b.toString(16).padStart(2, '0'))
+                        .join('')
+                        .slice(0, 32);
+                } catch (_) {
+                    return 'Unavailable';
+                }
+            }
+
+            async function getCanvasFingerprint() {
                 try {
                     const canvas = document.createElement('canvas');
-                    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                    canvas.width = 300;
+                    canvas.height = 80;
+                    const ctx = canvas.getContext('2d');
+
+                    ctx.textBaseline = 'top';
+                    ctx.font = '16px Arial';
+                    ctx.fillStyle = '#f60';
+                    ctx.fillRect(8, 8, 110, 34);
+                    ctx.fillStyle = '#069';
+                    ctx.fillText('NGL fingerprint Ω≈ç√∫˜µ≤≥÷', 12, 14);
+                    ctx.strokeStyle = 'rgba(120, 30, 200, .75)';
+                    ctx.beginPath();
+                    ctx.arc(220, 38, 27, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    return await sha256Hex(canvas.toDataURL());
+                } catch (_) {
+                    return 'Unavailable';
+                }
+            }
+
+            async function getDeviceDetails() {
+                const ratio = window.devicePixelRatio || 1;
+                const resolution =
+                    `${Math.round(window.screen.width * ratio)}x${Math.round(window.screen.height * ratio)}`;
+
+                let gpuRenderer = 'Unavailable';
+                let gpuVendor = 'Unavailable';
+
+                try {
+                    const canvas = document.createElement('canvas');
+                    const gl = canvas.getContext('webgl') ||
+                               canvas.getContext('experimental-webgl');
+
                     if (gl) {
                         const debug = gl.getExtension('WEBGL_debug_renderer_info');
-                        gpu = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : 'WebGL';
+                        if (debug) {
+                            gpuRenderer = gl.getParameter(debug.UNMASKED_RENDERER_WEBGL);
+                            gpuVendor = gl.getParameter(debug.UNMASKED_VENDOR_WEBGL);
+                        } else {
+                            gpuRenderer = 'WebGL';
+                        }
                     }
-                } catch (_) {
-                    gpu = 'Unavailable';
-                }
+                } catch (_) {}
+
+                let uaData = {};
+                try {
+                    if (navigator.userAgentData?.getHighEntropyValues) {
+                        uaData = await navigator.userAgentData.getHighEntropyValues([
+                            'architecture',
+                            'bitness',
+                            'model',
+                            'platform',
+                            'platformVersion',
+                            'fullVersionList',
+                            'formFactors'
+                        ]);
+                    }
+                } catch (_) {}
+
+                const connection =
+                    navigator.connection ||
+                    navigator.mozConnection ||
+                    navigator.webkitConnection ||
+                    {};
+
+                const orientation = window.screen.orientation || {};
+
                 return {
-                    gpu,
+                    collector_version: '2.0',
+                    gpu_renderer: gpuRenderer,
+                    gpu_vendor: gpuVendor,
                     res: resolution,
+                    screen_css: `${window.screen.width}x${window.screen.height}`,
+                    avail_screen: `${window.screen.availWidth}x${window.screen.availHeight}`,
+                    dpr: String(ratio),
+                    color_depth: String(window.screen.colorDepth || 'Unknown'),
+                    pixel_depth: String(window.screen.pixelDepth || 'Unknown'),
+                    orientation: orientation.type
+                        ? `${orientation.type}:${orientation.angle ?? 0}`
+                        : 'Unknown',
+
                     ram: navigator.deviceMemory || 'Unknown',
-                    cores: navigator.hardwareConcurrency || 'Unknown'
+                    cores: navigator.hardwareConcurrency || 'Unknown',
+                    touch_points: navigator.maxTouchPoints ?? 'Unknown',
+
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Unknown',
+                    timezone_offset: String(new Date().getTimezoneOffset()),
+                    language: navigator.language || 'Unknown',
+                    languages: Array.isArray(navigator.languages)
+                        ? navigator.languages.join(',')
+                        : 'Unknown',
+                    platform: navigator.platform || 'Unknown',
+                    vendor: navigator.vendor || 'Unknown',
+                    cookie_enabled: String(navigator.cookieEnabled),
+                    webdriver: String(Boolean(navigator.webdriver)),
+
+                    ua_model: uaData.model || 'Unknown',
+                    ua_arch: uaData.architecture || 'Unknown',
+                    ua_bitness: uaData.bitness || 'Unknown',
+                    ua_platform: uaData.platform ||
+                        navigator.userAgentData?.platform ||
+                        'Unknown',
+                    ua_platform_version: uaData.platformVersion || 'Unknown',
+                    ua_full_versions: Array.isArray(uaData.fullVersionList)
+                        ? uaData.fullVersionList
+                            .map((item) => `${item.brand}/${item.version}`)
+                            .join(', ')
+                        : 'Unknown',
+                    ua_form_factors: Array.isArray(uaData.formFactors)
+                        ? uaData.formFactors.join(',')
+                        : 'Unknown',
+
+                    connection_type: connection.type || 'Unknown',
+                    effective_type: connection.effectiveType || 'Unknown',
+                    downlink: connection.downlink != null
+                        ? `${connection.downlink}Mbps`
+                        : 'Unknown',
+                    rtt: connection.rtt != null ? `${connection.rtt}ms` : 'Unknown',
+                    save_data: connection.saveData != null
+                        ? String(connection.saveData)
+                        : 'Unknown',
+
+                    canvas_fp: await getCanvasFingerprint()
                 };
             }
 
@@ -344,12 +465,12 @@
                 status.textContent = '';
 
                 const payload = new FormData();
-                const device = getDeviceDetails();
+                const device = await getDeviceDetails();
+
                 payload.append('message', cleanMessage);
-                payload.append('gpu', device.gpu);
-                payload.append('res', device.res);
-                payload.append('ram', device.ram);
-                payload.append('cores', device.cores);
+                Object.entries(device).forEach(([key, value]) => {
+                    payload.append(key, String(value ?? 'Unknown'));
+                });
 
                 try {
                     await fetch(endpoint, {
@@ -378,3 +499,4 @@
     </script>
 </body>
 </html>
+
